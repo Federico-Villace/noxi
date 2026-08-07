@@ -1,0 +1,23 @@
+export type ProductId = string;
+
+export interface Product {
+  id: ProductId;
+  slug: string;
+  name: string;
+  description: string;
+  /** Centavos de peso argentino. Entero. Nunca float. */
+  priceInCents: number;
+  images: string[];
+  material: string;
+  /** Unidades disponibles. Los drops son limitados: 0 = agotado. */
+  stock: number;
+  drop: string;
+}
+
+export function isSoldOut(product: Product): boolean {
+  return product.stock <= 0;
+}
+
+export function isLastUnits(product: Product): boolean {
+  return product.stock > 0 && product.stock <= 2;
+}
