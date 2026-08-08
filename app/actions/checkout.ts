@@ -36,11 +36,28 @@ export async function startCheckout(
 
   try {
     const base = siteUrl();
+
+    // Si la base no es https pública, MP no redirige (omitimos auto_return) ni
+    // puede alcanzar el webhook. Falla silenciosa y carísima de diagnosticar:
+    // que grite en los logs en vez de descubrirlo pagando.
+    if (!base.startsWith("https://") || base.includes("localhost")) {
+      console.error(
+        `[checkout] NEXT_PUBLIC_SITE_URL no es una URL pública https: "${base}". ` +
+          "Sin esto MercadoPago no redirige ni notifica el pago.",
+      );
+    }
+
     const session = await paymentGateway().createCheckout(result.order, {
       success: `${base}/checkout/exito`,
       failure: `${base}/checkout/error`,
       pending: `${base}/checkout/pendiente`,
       notification: `${base}/api/webhooks/mercadopago`,
+    });
+
+    console.info("[checkout] preferencia creada", {
+      reference: result.order.reference,
+      preference: session.providerReference,
+      base,
     });
 
     return { ok: true, redirectUrl: session.redirectUrl };
