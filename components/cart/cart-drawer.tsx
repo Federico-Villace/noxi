@@ -10,6 +10,7 @@ import {
 import { formatPrice } from "@/core/shared/domain/money";
 import { useHydrated } from "@/lib/use-hydrated";
 import { ProductMedia } from "@/components/catalog/product-media";
+import { CheckoutButton } from "./checkout-button";
 
 export function CartDrawer() {
   const { isOpen, close, lines, remove, setQuantity } = useCartStore();
@@ -157,17 +158,10 @@ export function CartDrawer() {
           </div>
 
           <p className="label mb-4 text-silver/50">
-            Envío calculado al finalizar
+            Envío a coordinar por Instagram
           </p>
 
-          {/* SEAM DE PAGOS: acá entra MercadoPago Checkout Pro. */}
-          <button
-            type="button"
-            disabled
-            className="label w-full border border-line bg-carbon py-4 text-silver/40 disabled:cursor-not-allowed"
-          >
-            Checkout · próximamente
-          </button>
+          <CheckoutButton />
         </footer>
       </aside>
     </div>

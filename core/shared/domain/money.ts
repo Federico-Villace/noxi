@@ -4,6 +4,15 @@
  */
 const grouping = new Intl.NumberFormat("es-AR");
 
+/**
+ * La API de MercadoPago espera `unit_price` en pesos decimales, no en centavos.
+ * Esta es la ÚNICA frontera donde el dinero deja de ser entero: acá adentro
+ * seguimos con centavos siempre.
+ */
+export function centsToPesos(cents: number): number {
+  return Math.round(cents) / 100;
+}
+
 export function formatPrice(cents: number): string {
   const abs = Math.abs(Math.round(cents));
   const units = Math.trunc(abs / 100);

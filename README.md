@@ -66,17 +66,62 @@ Tokens en `app/globals.css` (`@theme`). Mobile-first.
 El wordmark es SVG con `textLength`: ocupa el 100% del ancho en cualquier
 viewport sin depender de las métricas de la fuente.
 
-## Pendiente: MercadoPago Checkout Pro
-
-El botón de checkout en `components/cart/cart-drawer.tsx` está deshabilitado y
-marcado con `SEAM DE PAGOS`. Falta:
-
-- `core/checkout/domain/payment-gateway.ts` (puerto)
-- adaptador con el SDK oficial `mercadopago`
-- ruta que crea la *preference* y redirige a `init_point`
-- webhook `/api/webhooks/mercadopago` con verificación de firma `x-signature`
-- páginas de retorno success / failure / pending
+## Pagos — MercadoPago Checkout Pro
 
 **Por qué MercadoPago y no Stripe:** Stripe no procesa pagos locales argentinos
 (ni tarjetas en pesos, ni cuotas, ni Rapipago/PagoFácil). Checkout Pro además
 delega el PCI compliance entero: los datos de tarjeta nunca tocan este código.
+
+### Variables de entorno
+
+Creá un `.env.local` (ya está en `.gitignore` — **los secretos no se commitean
+nunca**):
+
+```bash
+# Tus integraciones > tu app > Pruebas > Credenciales de prueba
+MP_ACCESS_TOKEN=TEST-xxxxxxxxxxxx
+
+# Tus integraciones > tu app > Webhooks > Configurar notificaciones
+# La clave secreta se genera al guardar la configuración.
+MP_WEBHOOK_SECRET=xxxxxxxxxxxx
+
+# Base pública. MercadoPago tiene que poder alcanzarla:
+# localhost NO sirve para el webhook. Usá la URL del preview de Vercel.
+NEXT_PUBLIC_SITE_URL=https://noxi.vercel.app
+```
+
+En Vercel, las mismas tres con `vercel env add`.
+
+### Flujo
+
+```
+carrito → startCheckout (server action)
+            └─ buildOrder: precio y stock desde el SERVIDOR
+            └─ preference → redirect a init_point (MP)
+                              └─ paga en MercadoPago
+                                   ├─ back_urls → /checkout/{exito,error,pendiente}
+                                   └─ webhook  → /api/webhooks/mercadopago
+```
+
+### Las dos reglas de seguridad
+
+1. **El cliente nunca manda precios.** `startCheckout` solo acepta
+   `{ productId, quantity }`; el precio y el stock salen del catálogo del
+   servidor (`core/checkout/domain/build-order.ts`). Si confiáramos en el
+   navegador, cualquiera edita el precio en devtools y se lleva una pieza por
+   un centavo. Hay un test que lo blinda.
+
+2. **El webhook valida firma antes de leer el cuerpo.**
+   `core/checkout/domain/webhook-signature.ts` calcula HMAC-SHA256 sobre
+   `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` y compara en tiempo
+   constante. Sin esto, cualquiera que conozca la URL postea "pago aprobado".
+
+### Pendiente
+
+- **Persistencia de órdenes**: el webhook hoy solo loguea. Con Supabase hay que
+  guardar la orden y marcarla pagada usando `external_reference` como clave
+  idempotente (ver `TODO(persistencia)` en la ruta del webhook).
+- **Descuento de stock** post-pago: hoy el stock es estático.
+- **Envío**: se coordina por Instagram. Para automatizarlo, la API de
+  **MiCorreo (Correo Argentino)** no exige acuerdo comercial ni volumen mínimo;
+  Andreani y OCA sí.
