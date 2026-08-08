@@ -34,9 +34,13 @@ export function SiteFooter() {
         ))}
       </div>
 
-      <div className="border-b border-line px-5 py-4">
+      <div className="flex flex-col gap-2 border-b border-line px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="label text-silver/40">
           © {new Date().getFullYear()} Noxiclts
+        </p>
+        <p className="label text-silver/40">
+          Desarrollado por{" "}
+          <span className="text-silver">Federico Villace</span>
         </p>
       </div>
     </footer>
