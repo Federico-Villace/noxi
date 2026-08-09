@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { verifyWebhookSignature } from "@/core/checkout/domain/webhook-signature";
 import { fromMercadoPagoStatus, orderRepository } from "@/core/orders";
@@ -9,7 +10,9 @@ import { fromMercadoPagoStatus, orderRepository } from "@/core/orders";
  * Un POST sin firma válida no debe provocar ni una sola consulta a la API.
  */
 export async function POST(request: Request) {
-  const secret = process.env.MP_WEBHOOK_SECRET;
+  // .trim() a propósito: un salto de línea o espacio pegado al copiar el
+  // secreto del panel cambia el HMAC por completo y es invisible en el dashboard.
+  const secret = process.env.MP_WEBHOOK_SECRET?.trim();
   if (!secret) {
     console.error("[webhook] falta MP_WEBHOOK_SECRET");
     return new Response(null, { status: 500 });
@@ -53,6 +56,13 @@ export async function POST(request: Request) {
       type: body.type,
       action: body.action,
       manifest: `id:${dataId?.toLowerCase() ?? ""};request-id:${requestId ?? ""};ts:<del header>;`,
+      // Huella del secreto, NO el secreto. Sirve para comparar contra el valor
+      // del panel sin que nadie tenga que pegar la clave en ningún lado.
+      secretLength: secret.length,
+      secretFingerprint: createHash("sha256")
+        .update(secret)
+        .digest("hex")
+        .slice(0, 12),
     });
     return new Response(null, { status: 401 });
   }
