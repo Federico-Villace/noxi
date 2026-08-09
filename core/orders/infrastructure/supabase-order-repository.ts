@@ -48,6 +48,18 @@ function toRecord(row: OrderRow): OrderRecord {
   };
 }
 
+async function findByReference(reference: string): Promise<OrderRecord | null> {
+  const { data, error } = await supabaseAdmin()
+    .from("orders")
+    .select("*, order_lines(*)")
+    .eq("reference", reference)
+    .maybeSingle();
+
+  if (error) throw new Error(`No se pudo leer la orden: ${error.message}`);
+
+  return data ? toRecord(data as OrderRow) : null;
+}
+
 export function createSupabaseOrderRepository(): OrderRepository {
   return {
     async create(order) {
@@ -91,7 +103,9 @@ export function createSupabaseOrderRepository(): OrderRepository {
       payerEmail,
     }: ConfirmPaymentInput): Promise<ConfirmPaymentResult> {
       const db = supabaseAdmin();
-      const current = await this.findByReference(reference);
+      // Función libre, no `this`: si alguien desestructura el repositorio
+      // (`const { confirmPayment } = repo`), `this` se pierde y esto explota.
+      const current = await findByReference(reference);
 
       if (!current) return { outcome: "no-encontrada" };
       if (!shouldApplyTransition(current.status, status)) {
@@ -123,19 +137,7 @@ export function createSupabaseOrderRepository(): OrderRepository {
       return { outcome: "actualizada", order: toRecord(updated) };
     },
 
-    async findByReference(reference) {
-      const { data, error } = await supabaseAdmin()
-        .from("orders")
-        .select("*, order_lines(*)")
-        .eq("reference", reference)
-        .maybeSingle();
-
-      if (error) {
-        throw new Error(`No se pudo leer la orden: ${error.message}`);
-      }
-
-      return data ? toRecord(data as OrderRow) : null;
-    },
+    findByReference,
 
     async markForReview(reference, motivo) {
       const { error } = await supabaseAdmin()
