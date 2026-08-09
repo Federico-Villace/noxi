@@ -16,26 +16,45 @@ export async function POST(request: Request) {
   }
 
   const url = new URL(request.url);
-  const dataId =
-    url.searchParams.get("data.id") ?? url.searchParams.get("id") ?? null;
 
-  const valid = verifyWebhookSignature({
-    signatureHeader: request.headers.get("x-signature"),
-    requestId: request.headers.get("x-request-id"),
-    dataId,
-    secret,
-  });
-
-  if (!valid) {
-    console.warn("[webhook] firma inválida, notificación descartada");
-    return new Response(null, { status: 401 });
-  }
-
+  // Parsear el cuerpo NO es actuar sobre él. Se hace antes de validar solo
+  // porque `data.id` a veces viaja únicamente en el body y hace falta para
+  // construir el manifest. Ningún efecto ocurre antes de verificar la firma.
   let body: { type?: string; action?: string; data?: { id?: string } };
   try {
     body = await request.json();
   } catch {
     return new Response(null, { status: 400 });
+  }
+
+  const dataId =
+    url.searchParams.get("data.id") ??
+    url.searchParams.get("id") ??
+    body.data?.id ??
+    null;
+
+  const signatureHeader = request.headers.get("x-signature");
+  const requestId = request.headers.get("x-request-id");
+
+  const valid = verifyWebhookSignature({
+    signatureHeader,
+    requestId,
+    dataId,
+    secret,
+  });
+
+  if (!valid) {
+    // Diagnóstico sin secretos: qué mandó MP y con qué armamos el manifest.
+    console.warn("[webhook] firma inválida, notificación descartada", {
+      query: url.search,
+      tieneSignature: Boolean(signatureHeader),
+      tieneRequestId: Boolean(requestId),
+      dataId,
+      type: body.type,
+      action: body.action,
+      manifest: `id:${dataId?.toLowerCase() ?? ""};request-id:${requestId ?? ""};ts:<del header>;`,
+    });
+    return new Response(null, { status: 401 });
   }
 
   const paymentId = body.data?.id ?? dataId;
