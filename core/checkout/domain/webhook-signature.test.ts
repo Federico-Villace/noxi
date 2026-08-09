@@ -133,6 +133,40 @@ describe("verifyWebhookSignature", () => {
     ).toBe(true);
   });
 
+  it("acepta una firma armada sin request-id aunque el header venga", () => {
+    const sinRequestId = `id:${dataId};ts:${ts};`;
+
+    expect(
+      verifyWebhookSignature({
+        signatureHeader: header(ts, sign(sinRequestId)),
+        requestId, // MP mandó el header pero no lo firmó
+        dataId,
+        secret: SECRET,
+      }),
+    ).toBe(true);
+  });
+
+  /**
+   * La tolerancia de formato NO puede aflojar la detección de manipulación:
+   * si hay data.id, TODA variante lo incluye. Aceptar un manifest sin id
+   * permitiría reusar una firma válida apuntando a otro pago.
+   */
+  it("ninguna variante permite alterar el data.id", () => {
+    for (const manifestFalso of [
+      `ts:${ts};`,
+      `request-id:${requestId};ts:${ts};`,
+    ]) {
+      expect(
+        verifyWebhookSignature({
+          signatureHeader: header(ts, sign(manifestFalso)),
+          requestId,
+          dataId: "999999",
+          secret: SECRET,
+        }),
+      ).toBe(false);
+    }
+  });
+
   it("no revienta cuando la firma recibida tiene otro largo", () => {
     expect(
       verifyWebhookSignature({

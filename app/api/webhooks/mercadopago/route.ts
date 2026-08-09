@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { verifyWebhookSignature } from "@/core/checkout/domain/webhook-signature";
+import { matchSignatureVariant } from "@/core/checkout/domain/webhook-signature";
 import { fromMercadoPagoStatus, orderRepository } from "@/core/orders";
 
 /**
@@ -39,14 +39,23 @@ export async function POST(request: Request) {
   const signatureHeader = request.headers.get("x-signature");
   const requestId = request.headers.get("x-request-id");
 
-  const valid = verifyWebhookSignature({
+  const variant = matchSignatureVariant({
     signatureHeader,
     requestId,
     dataId,
     secret,
   });
 
-  if (!valid) {
+  if (variant) {
+    console.info("[webhook] firma válida", {
+      variante: variant,
+      query: url.search,
+      dataId,
+      type: body.type,
+    });
+  }
+
+  if (!variant) {
     // Diagnóstico sin secretos: qué mandó MP y con qué armamos el manifest.
     console.warn("[webhook] firma inválida, notificación descartada", {
       query: url.search,

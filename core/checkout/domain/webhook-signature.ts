@@ -5,7 +5,7 @@ interface VerifyInput {
   signatureHeader: string | null;
   /** Header `x-request-id`. */
   requestId: string | null;
-  /** Query param `data.id` de la notificación. */
+  /** `data.id` de la notificación (query o body). */
   dataId: string | null;
   secret: string;
 }
@@ -38,33 +38,83 @@ function equalsInConstantTime(expected: string, received: string): boolean {
 }
 
 /**
- * Valida que una notificación venga realmente de MercadoPago.
+ * Variantes de manifest que MercadoPago usa en la práctica.
  *
- * Sin esto, cualquiera que conozca la URL del webhook puede POSTear
- * "pago aprobado" y llevarse la mercadería sin pagar. El manifest y el
- * algoritmo están definidos por MP:
- *   id:<data.id>;request-id:<x-request-id>;ts:<ts>;
- * Las partes ausentes se omiten del manifest.
+ * REGLA DE SEGURIDAD: si la notificación trae `data.id`, TODAS las variantes lo
+ * incluyen. Nunca se acepta un manifest sin el id cuando el id existe — si no,
+ * alguien podría reutilizar una firma válida apuntando a otro pago.
+ * Lo que sí varía es la inclusión de `request-id` y el casing del id, que no
+ * afectan a qué pago se refiere la notificación.
  */
-export function verifyWebhookSignature({
+function manifestVariants(
+  dataId: string | null,
+  requestId: string | null,
+  ts: string,
+): Array<{ name: string; manifest: string }> {
+  const idParts = dataId
+    ? [
+        { name: "id-lower", value: `id:${dataId.toLowerCase()};` },
+        { name: "id-raw", value: `id:${dataId};` },
+      ]
+    : [{ name: "sin-id", value: "" }];
+
+  const requestParts = requestId
+    ? [
+        { name: "con-request-id", value: `request-id:${requestId};` },
+        { name: "sin-request-id", value: "" },
+      ]
+    : [{ name: "sin-request-id", value: "" }];
+
+  const seen = new Set<string>();
+  const variants: Array<{ name: string; manifest: string }> = [];
+
+  for (const id of idParts) {
+    for (const req of requestParts) {
+      const manifest = `${id.value}${req.value}ts:${ts};`;
+      if (seen.has(manifest)) continue;
+      seen.add(manifest);
+      variants.push({ name: `${id.name}/${req.name}`, manifest });
+    }
+  }
+
+  return variants;
+}
+
+/**
+ * Devuelve el nombre de la variante que validó, o null si ninguna.
+ *
+ * Probar varias formas NO debilita la seguridad: cada una se verifica con
+ * HMAC-SHA256 contra el mismo secreto. Sin el secreto no se puede forjar
+ * ninguna. Lo que evita es fallar por una diferencia de formato.
+ */
+export function matchSignatureVariant({
   signatureHeader,
   requestId,
   dataId,
   secret,
-}: VerifyInput): boolean {
-  if (!secret || !signatureHeader) return false;
+}: VerifyInput): string | null {
+  if (!secret || !signatureHeader) return null;
 
   const signature = parseSignature(signatureHeader);
-  if (!signature) return false;
+  if (!signature) return null;
 
-  const manifest = [
-    // MP normaliza a minúscula los data.id alfanuméricos.
-    dataId ? `id:${dataId.toLowerCase()};` : "",
-    requestId ? `request-id:${requestId};` : "",
-    `ts:${signature.ts};`,
-  ].join("");
+  for (const variant of manifestVariants(dataId, requestId, signature.ts)) {
+    const expected = createHmac("sha256", secret)
+      .update(variant.manifest)
+      .digest("hex");
 
-  const expected = createHmac("sha256", secret).update(manifest).digest("hex");
+    if (equalsInConstantTime(expected, signature.v1)) return variant.name;
+  }
 
-  return equalsInConstantTime(expected, signature.v1);
+  return null;
+}
+
+/**
+ * Valida que una notificación venga realmente de MercadoPago.
+ *
+ * Sin esto, cualquiera que conozca la URL del webhook puede POSTear
+ * "pago aprobado" y llevarse la mercadería sin pagar.
+ */
+export function verifyWebhookSignature(input: VerifyInput): boolean {
+  return matchSignatureVariant(input) !== null;
 }
