@@ -1,28 +1,26 @@
 import { createHash } from "node:crypto";
-import { MercadoPagoConfig, Payment } from "mercadopago";
+import { paymentVerifier } from "@/core/checkout";
 import { matchSignatureVariant } from "@/core/checkout/domain/webhook-signature";
-import { fromMercadoPagoStatus, orderRepository } from "@/core/orders";
+import { orderRepository } from "@/core/orders";
+import { confirmOrderPayment } from "@/core/orders/application/confirm-order-payment";
 
 /**
  * Receptor de notificaciones de MercadoPago.
  *
- * Orden innegociable: PRIMERO se valida la firma, DESPUÉS se lee el cuerpo.
- * Un POST sin firma válida no debe provocar ni una sola consulta a la API.
+ * La notificación NO es la fuente de verdad, ni siquiera cuando la firma
+ * valida: es un aviso de "andá a fijarte el pago X". El estado real se lee
+ * después de la API de MP con nuestro access token (ver confirmOrderPayment).
+ *
+ * Por eso una firma que no valida se registra como degradada pero igual
+ * dispara la consulta: un atacante tendría que inventar un payment_id que
+ * exista en MercadoPago Y cuyo external_reference coincida con una orden
+ * nuestra — y aun así el estado lo pondría MP, no él.
  */
 export async function POST(request: Request) {
-  // .trim() a propósito: un salto de línea o espacio pegado al copiar el
-  // secreto del panel cambia el HMAC por completo y es invisible en el dashboard.
+  // .trim(): un salto de línea al copiar el secreto cambia el HMAC entero.
   const secret = process.env.MP_WEBHOOK_SECRET?.trim();
-  if (!secret) {
-    console.error("[webhook] falta MP_WEBHOOK_SECRET");
-    return new Response(null, { status: 500 });
-  }
-
   const url = new URL(request.url);
 
-  // Parsear el cuerpo NO es actuar sobre él. Se hace antes de validar solo
-  // porque `data.id` a veces viaja únicamente en el body y hace falta para
-  // construir el manifest. Ningún efecto ocurre antes de verificar la firma.
   let body: { type?: string; action?: string; data?: { id?: string } };
   try {
     body = await request.json();
@@ -36,88 +34,56 @@ export async function POST(request: Request) {
     body.data?.id ??
     null;
 
+  const topic = body.type ?? url.searchParams.get("topic") ?? null;
   const signatureHeader = request.headers.get("x-signature");
   const requestId = request.headers.get("x-request-id");
 
-  const variant = matchSignatureVariant({
-    signatureHeader,
-    requestId,
-    dataId,
-    secret,
-  });
+  const variant = secret
+    ? matchSignatureVariant({ signatureHeader, requestId, dataId, secret })
+    : null;
 
   if (variant) {
-    console.info("[webhook] firma válida", {
-      variante: variant,
-      query: url.search,
-      dataId,
-      type: body.type,
-    });
-  }
-
-  if (!variant) {
-    // Diagnóstico sin secretos: qué mandó MP y con qué armamos el manifest.
-    console.warn("[webhook] firma inválida, notificación descartada", {
+    console.info("[webhook] firma válida", { variante: variant, dataId, topic });
+  } else {
+    console.warn("[webhook] firma NO validada, se confirma contra la API de MP", {
       query: url.search,
       tieneSignature: Boolean(signatureHeader),
-      tieneRequestId: Boolean(requestId),
       dataId,
-      type: body.type,
+      topic,
       action: body.action,
-      manifest: `id:${dataId?.toLowerCase() ?? ""};request-id:${requestId ?? ""};ts:<del header>;`,
-      // Huella del secreto, NO el secreto. Sirve para comparar contra el valor
-      // del panel sin que nadie tenga que pegar la clave en ningún lado.
-      secretLength: secret.length,
-      secretFingerprint: createHash("sha256")
-        .update(secret)
-        .digest("hex")
-        .slice(0, 12),
+      secretLength: secret?.length ?? 0,
+      secretFingerprint: secret
+        ? createHash("sha256").update(secret).digest("hex").slice(0, 12)
+        : null,
     });
-    return new Response(null, { status: 401 });
   }
 
-  const paymentId = body.data?.id ?? dataId;
-  if (body.type !== "payment" || !paymentId) {
-    // Otros topics (merchant_order, etc.) se reconocen sin procesar.
+  // Solo nos interesan los avisos de pago. merchant_order y compañía se
+  // reconocen y se descartan.
+  if (topic !== "payment" || !dataId) {
     return new Response(null, { status: 200 });
   }
 
   try {
-    const client = new MercadoPagoConfig({
-      accessToken: process.env.MP_ACCESS_TOKEN ?? "",
-    });
-    const payment = await new Payment(client).get({ id: paymentId });
-
-    console.info("[webhook] pago recibido", {
-      id: payment.id,
-      status: payment.status,
-      externalReference: payment.external_reference,
-      amount: payment.transaction_amount,
-    });
-
-    const reference = payment.external_reference;
-    if (!reference) {
-      console.warn("[webhook] pago sin external_reference, no hay orden que casar");
-      return new Response(null, { status: 200 });
-    }
-
-    const result = await orderRepository().confirmPayment({
-      reference,
-      status: fromMercadoPagoStatus(payment.status),
-      paymentId: String(payment.id ?? ""),
-      payerEmail: payment.payer?.email ?? null,
+    const result = await confirmOrderPayment(dataId, {
+      verifier: paymentVerifier(),
+      orders: orderRepository(),
     });
 
     console.info("[webhook] orden", {
-      reference,
+      paymentId: dataId,
       outcome: result.outcome,
-      status: result.outcome === "no-encontrada" ? null : result.order.status,
+      firmaValidada: Boolean(variant),
+      status:
+        result.outcome === "actualizada" || result.outcome === "ignorada"
+          ? result.order.status
+          : null,
     });
 
-    // TODO(FASE 2): si outcome === "actualizada" y el estado quedó "pagada",
+    // TODO(FASE 2): si outcome === "actualizada" y quedó "pagada",
     // descontar stock de forma atómica y marcar needs_review si da negativo.
   } catch (error) {
-    console.error("[webhook] no se pudo consultar el pago", error);
+    console.error("[webhook] no se pudo confirmar el pago", error);
     // 500 para que MP reintente: perder una confirmación es peor que un reintento.
     return new Response(null, { status: 500 });
   }

@@ -1,5 +1,7 @@
 import type { PaymentGateway } from "./domain/payment-gateway";
+import type { PaymentVerifier } from "./domain/payment-verifier";
 import { createMercadoPagoGateway } from "./infrastructure/mercadopago-gateway";
+import { createMercadoPagoPaymentVerifier } from "./infrastructure/mercadopago-payment-verifier";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -22,6 +24,11 @@ export function paymentGateway(): PaymentGateway {
   return createMercadoPagoGateway(required("MP_ACCESS_TOKEN"));
 }
 
+/** Consulta la verdad sobre un pago a la API de MercadoPago. */
+export function paymentVerifier(): PaymentVerifier {
+  return createMercadoPagoPaymentVerifier(required("MP_ACCESS_TOKEN"));
+}
+
 export function webhookSecret(): string {
   return required("MP_WEBHOOK_SECRET");
 }
@@ -36,4 +43,8 @@ export type {
   CheckoutSession,
   CheckoutUrls,
 } from "./domain/payment-gateway";
+export type {
+  PaymentVerifier,
+  VerifiedPayment,
+} from "./domain/payment-verifier";
 export type { Order, OrderLine } from "./domain/build-order";
