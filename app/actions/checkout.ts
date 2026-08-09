@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { productRepository } from "@/core/catalog";
 import { paymentGateway, siteUrl } from "@/core/checkout";
+import { orderRepository } from "@/core/orders";
 import {
   buildOrder,
   type CheckoutRequestLine,
@@ -35,6 +36,15 @@ export async function startCheckout(
   }
 
   try {
+    // La orden se guarda ANTES de mandar a pagar. Si esto falla, el checkout
+    // falla: es preferible perder una venta a cobrarla sin poder registrarla.
+    await orderRepository().create({
+      reference: result.order.reference,
+      status: "iniciada",
+      lines: result.order.lines,
+      totalInCents: result.order.totalInCents,
+    });
+
     const base = siteUrl();
 
     // Si la base no es https pública, MP no redirige (omitimos auto_return) ni

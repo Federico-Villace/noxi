@@ -9,6 +9,18 @@ export interface ConfirmPaymentInput {
 }
 
 /**
+ * Resultado explícito en vez de `OrderRecord | null`.
+ *
+ * El webhook necesita distinguir "actualicé la orden" de "ya estaba así, la
+ * ignoré": solo en el primer caso hay que disparar efectos como descontar
+ * stock o mandar el mail de confirmación.
+ */
+export type ConfirmPaymentResult =
+  | { outcome: "actualizada"; order: OrderRecord }
+  | { outcome: "ignorada"; order: OrderRecord }
+  | { outcome: "no-encontrada" };
+
+/**
  * PUERTO de órdenes. Mismo criterio que el catálogo: el dominio no sabe que
  * del otro lado hay Supabase.
  */
@@ -25,9 +37,9 @@ export interface OrderRepository {
 
   /**
    * Confirma el resultado del pago. DEBE ser idempotente: MercadoPago reintenta
-   * la misma notificación, y a veces manda varias para un mismo pago.
+   * la misma notificación y no garantiza el orden de llegada.
    */
-  confirmPayment(input: ConfirmPaymentInput): Promise<OrderRecord | null>;
+  confirmPayment(input: ConfirmPaymentInput): Promise<ConfirmPaymentResult>;
 
   findByReference(reference: string): Promise<OrderRecord | null>;
 

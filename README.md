@@ -87,8 +87,16 @@ MP_WEBHOOK_SECRET=xxxxxxxxxxxx
 
 # Base pública. MercadoPago tiene que poder alcanzarla:
 # localhost NO sirve para el webhook. Usá la URL del preview de Vercel.
-NEXT_PUBLIC_SITE_URL=https://noxi.vercel.app
+NEXT_PUBLIC_SITE_URL=https://noxi-drab.vercel.app
+
+# Supabase (Project Settings > API)
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ```
+
+> **Nunca le pongas `NEXT_PUBLIC_` al service role key.** Las variables
+> `NEXT_PUBLIC_` se inlinean en el build y viajan al navegador. Esa clave
+> saltea el RLS: en el bundle equivale a dar acceso total a las órdenes.
 
 En Vercel, las mismas tres con `vercel env add`.
 
@@ -116,12 +124,29 @@ carrito → startCheckout (server action)
    `id:<data.id>;request-id:<x-request-id>;ts:<ts>;` y compara en tiempo
    constante. Sin esto, cualquiera que conozca la URL postea "pago aprobado".
 
+## Órdenes (Supabase)
+
+Migración: `supabase/migrations/0001_orders.sql` — correr en Supabase SQL Editor.
+
+**La orden se guarda al crear la preferencia, no en el webhook.** En el checkout
+sabemos exactamente qué había en el carrito; el webhook solo conoce el pago. Y
+si la notificación nunca llega, igual queda rastro del intento de compra.
+
+Las líneas guardan un **snapshot** de título y precio, sin FK a productos: una
+orden es un registro contable, no una vista de datos vivos.
+
+`core/orders/domain/status-transition.ts` decide si una notificación modifica la
+orden. MercadoPago **no garantiza el orden de las notificaciones** y reintenta
+las viejas: sin esa guarda, un `pending` atrasado despagaría una orden cobrada.
+Una devolución sí puede superar a un pago; un rechazo posterior, no.
+
+RLS activo con **cero políticas**: las órdenes solo se tocan desde el servidor
+con la `service_role` key.
+
 ### Pendiente
 
-- **Persistencia de órdenes**: el webhook hoy solo loguea. Con Supabase hay que
-  guardar la orden y marcarla pagada usando `external_reference` como clave
-  idempotente (ver `TODO(persistencia)` en la ruta del webhook).
-- **Descuento de stock** post-pago: hoy el stock es estático.
+- **Descuento de stock** post-pago: hoy el stock es estático (FASE 2).
+- **Panel admin** para cargar piezas (FASE 3).
 - **Envío**: se coordina por Instagram. Para automatizarlo, la API de
   **MiCorreo (Correo Argentino)** no exige acuerdo comercial ni volumen mínimo;
   Andreani y OCA sí.

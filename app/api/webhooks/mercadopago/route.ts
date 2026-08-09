@@ -1,5 +1,6 @@
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { verifyWebhookSignature } from "@/core/checkout/domain/webhook-signature";
+import { fromMercadoPagoStatus, orderRepository } from "@/core/orders";
 
 /**
  * Receptor de notificaciones de MercadoPago.
@@ -49,14 +50,34 @@ export async function POST(request: Request) {
     });
     const payment = await new Payment(client).get({ id: paymentId });
 
-    // TODO(persistencia): con Supabase, guardar la orden acá y marcarla pagada
-    // usando `external_reference` como clave idempotente. Hoy solo se registra.
     console.info("[webhook] pago recibido", {
       id: payment.id,
       status: payment.status,
       externalReference: payment.external_reference,
       amount: payment.transaction_amount,
     });
+
+    const reference = payment.external_reference;
+    if (!reference) {
+      console.warn("[webhook] pago sin external_reference, no hay orden que casar");
+      return new Response(null, { status: 200 });
+    }
+
+    const result = await orderRepository().confirmPayment({
+      reference,
+      status: fromMercadoPagoStatus(payment.status),
+      paymentId: String(payment.id ?? ""),
+      payerEmail: payment.payer?.email ?? null,
+    });
+
+    console.info("[webhook] orden", {
+      reference,
+      outcome: result.outcome,
+      status: result.outcome === "no-encontrada" ? null : result.order.status,
+    });
+
+    // TODO(FASE 2): si outcome === "actualizada" y el estado quedó "pagada",
+    // descontar stock de forma atómica y marcar needs_review si da negativo.
   } catch (error) {
     console.error("[webhook] no se pudo consultar el pago", error);
     // 500 para que MP reintente: perder una confirmación es peor que un reintento.
