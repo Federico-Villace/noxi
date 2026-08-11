@@ -14,7 +14,7 @@ export function Ticker() {
   const row = [...MESSAGES, ...MESSAGES];
 
   return (
-    <div className="overflow-hidden border-b border-line bg-blood">
+    <div className="my-[10px] overflow-hidden border-b border-line bg-blood">
       <div className="flex w-max animate-ticker">
         {[0, 1].map((block) => (
           <ul key={block} className="flex shrink-0" aria-hidden={block === 1}>
