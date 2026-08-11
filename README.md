@@ -143,10 +143,45 @@ Una devolución sí puede superar a un pago; un rechazo posterior, no.
 RLS activo con **cero políticas**: las órdenes solo se tocan desde el servidor
 con la `service_role` key.
 
+## Productos y stock (Supabase)
+
+Migración: `supabase/migrations/0002_products_and_stock.sql`.
+
+Sembrar el catálogo inicial desde el archivo estático:
+
+```bash
+pnpm seed:products
+```
+
+El catálogo ahora sale de Supabase. **Se cambió una sola línea**
+(`core/catalog/index.ts`): ni un componente, ni una página, ni el checkout se
+tocaron. El adaptador estático sigue vivo como semilla y como sujeto del test
+de imágenes en disco.
+
+### Descuento de stock
+
+Todo ocurre en `apply_stock_for_order`, una función de Postgres — **no en
+JavaScript**. Leer stock, restar y guardar desde JS abre una ventana entre la
+lectura y la escritura donde dos ventas simultáneas se pisan.
+
+La función resuelve dos cosas en una transacción:
+
+- **Idempotencia**: `update orders set stock_applied = true where ... and
+  stock_applied = false` es un reclamo atómico. MercadoPago manda hasta tres
+  avisos por venta, más la vuelta de la compradora al sitio: solo uno descuenta.
+- **Atomicidad**: el reclamo y el descuento viven o mueren juntos.
+
+Si algún stock queda **negativo** hubo sobreventa: la orden se marca con
+`needs_review` y el motivo. Si el descuento falla, la orden se confirma igual y
+se marca para revisión — el pago ya ocurrió, no se puede "desconfirmar".
+
 ### Pendiente
 
-- **Descuento de stock** post-pago: hoy el stock es estático (FASE 2).
 - **Panel admin** para cargar piezas (FASE 3).
+- **Firma del webhook**: no valida contra las notificaciones reales de MP
+  (`firmaValidada: false` en los logs). Hoy es defensa en profundidad, no un
+  bloqueante: la confirmación se hace consultando la API de MP. Queda como
+  deuda técnica a resolver.
 - **Envío**: se coordina por Instagram. Para automatizarlo, la API de
   **MiCorreo (Correo Argentino)** no exige acuerdo comercial ni volumen mínimo;
   Andreani y OCA sí.

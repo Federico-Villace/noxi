@@ -3,6 +3,13 @@ import { ProductGrid } from "@/components/catalog/product-grid";
 import { Ticker } from "@/components/layout/ticker";
 import { Wordmark } from "@/components/layout/wordmark";
 
+/**
+ * El catálogo ahora vive en Supabase: sin esto la grilla quedaría congelada en
+ * el build y mostraría stock viejo. No afecta la correctitud —el stock real se
+ * revalida en el servidor al hacer checkout— pero sí lo que ve la clienta.
+ */
+export const revalidate = 60;
+
 export default async function HomePage() {
   const products = await productRepository.findAll();
   const available = products.filter((product) => product.stock > 0).length;

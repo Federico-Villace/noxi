@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { paymentVerifier } from "@/core/checkout";
 import { matchSignatureVariant } from "@/core/checkout/domain/webhook-signature";
-import { orderRepository } from "@/core/orders";
+import { orderRepository, stockAdjuster } from "@/core/orders";
 import { confirmOrderPayment } from "@/core/orders/application/confirm-order-payment";
 
 /**
@@ -68,6 +68,7 @@ export async function POST(request: Request) {
     const result = await confirmOrderPayment(dataId, {
       verifier: paymentVerifier(),
       orders: orderRepository(),
+      stock: stockAdjuster(),
     });
 
     console.info("[webhook] orden", {

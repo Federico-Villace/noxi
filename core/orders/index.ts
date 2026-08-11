@@ -1,5 +1,7 @@
 import type { OrderRepository } from "./domain/order-repository";
+import type { StockAdjuster } from "./domain/stock-adjuster";
 import { createSupabaseOrderRepository } from "./infrastructure/supabase-order-repository";
+import { createSupabaseStockAdjuster } from "./infrastructure/supabase-stock-adjuster";
 
 let cached: OrderRepository | null = null;
 
@@ -11,6 +13,13 @@ let cached: OrderRepository | null = null;
 export function orderRepository(): OrderRepository {
   if (!cached) cached = createSupabaseOrderRepository();
   return cached;
+}
+
+let cachedStock: StockAdjuster | null = null;
+
+export function stockAdjuster(): StockAdjuster {
+  if (!cachedStock) cachedStock = createSupabaseStockAdjuster();
+  return cachedStock;
 }
 
 export type { OrderRecord, OrderLineRecord } from "./domain/order";

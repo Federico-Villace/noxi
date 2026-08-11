@@ -5,6 +5,8 @@ import { formatPrice } from "@/core/shared/domain/money";
 import { ProductMedia } from "@/components/catalog/product-media";
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 
+export const revalidate = 60;
+
 export async function generateStaticParams() {
   const products = await productRepository.findAll();
   return products.map((product) => ({ slug: product.slug }));
