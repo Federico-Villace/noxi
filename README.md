@@ -17,10 +17,18 @@ El dominio no sabe que existe React, y la UI no sabe de dónde salen los datos.
 ```
 core/
   catalog/
-    domain/        product.ts · product-repository.ts  ← PUERTO
-    infrastructure/ static-product-repository.ts       ← ADAPTADOR
-                    catalog.data.ts                    ← el drop
-    index.ts       ← ÚNICO punto de acoplamiento
+    domain/        product.ts
+                   product-repository.ts        ← PUERTO de lectura (tienda)
+                   product-admin-repository.ts  ← PUERTO de escritura (panel)
+                   image-storage.ts             ← PUERTO de fotos
+                   product-draft.ts             ← validación del formulario
+    infrastructure/ supabase-*.ts               ← ADAPTADORES
+                    catalog.data.ts             ← semilla del arranque
+    index.ts       ← cableado de la tienda (solo lectura)
+    admin.ts       ← cableado del panel (lectura + escritura)
+  admin/
+    domain/        session-token.ts  ← HMAC de la sesión, cero dependencias
+    index.ts       ← requireAdmin() y compañía
   cart/
     domain/        cart.ts  ← funciones puras, cero React
     infrastructure/ cart-store.ts ← zustand, solo orquesta el dominio
@@ -37,23 +45,66 @@ components/        UI (server components salvo lo que necesita estado)
 Nada más. La firma del puerto ya es asincrónica justamente para esto: ningún
 componente cambia.
 
-## Cargar productos
+## Cargar productos — panel admin
 
-1. Dejá la foto en `public/products/<slug>.jpg` — cuadrada, fondo negro,
-   1400×1400 mínimo.
-2. Agregá el objeto en `core/catalog/infrastructure/catalog.data.ts` con
-   `images: ["/products/<slug>.jpg"]`.
+`/admin`. Ahí se carga, se edita, se ajusta stock y se muestra u oculta una
+pieza. Cubre **todas** las columnas de la tabla `products`: no queda nada que
+haya que ir a tocar al SQL editor.
 
-`images: []` = todavía sin foto, se renderiza un marco vacío con el SKU.
+### Puesta en marcha (una sola vez)
 
-> **No apuntes a un archivo que no existe.** El test
-> `toda imagen declarada existe en public/` falla — porque en producción eso
-> sería un cuadrado vacío para la clienta.
+1. Corré `supabase/migrations/0003_products_bucket.sql` en el SQL Editor. Crea
+   el bucket público `products`, que es donde van las fotos.
+2. Cargá `ADMIN_PASSWORD` en `.env.local` y en Vercel (ver
+   [Variables de entorno](#variables-de-entorno)).
 
-Los precios van en **centavos enteros** (`priceInCents: 4_800_000` = $48.000).
-Nunca float: `0.1 + 0.2` en un subtotal es plata real perdida.
+Listo. `/admin` pide esa contraseña y adentro está todo.
 
-`stock: 0` marca la pieza como agotada y la manda al final de la grilla.
+### Cómo funciona
+
+- **Precio**: se escribe en pesos, sin separador de miles (`54000`, o
+  `54000.50` con centavos). Adentro se guarda en centavos enteros —
+  `4_800_000` = $48.000. Nunca float: `0.1 + 0.2` en un subtotal es plata real
+  perdida.
+- **Slug**: sale solo del nombre y es la URL pública de la pieza
+  (`/producto/anillo-sello-negro`). Es único: si chocás con uno existente, el
+  panel te lo dice.
+- **ID**: vacío se autonumera (`NX-009`). Va desde el mayor existente, no desde
+  la cantidad, así no puede repetir uno ya usado.
+- **Fotos**: se suben desde el panel a Supabase Storage. La primera es la
+  portada. Sin fotos, la tienda muestra un marco vacío con el SKU — se lee como
+  diseño, no como bug.
+- **Stock 0** = agotada, y va al final de la grilla.
+- **Ocultar** es baja lógica (`active = false`). No hay borrado físico: una
+  pieza vendida sigue siendo la referencia de órdenes viejas y del comprobante
+  que tiene la clienta.
+
+Al guardar se revalidan la home y la ficha, así que el cambio se ve en la
+tienda al instante y no dentro de 60 segundos.
+
+### La seguridad del panel
+
+- La contraseña **nunca** viaja en la cookie. La cookie es un token firmado con
+  HMAC-SHA256 (`core/admin/domain/session-token.ts`): dice cuándo vence y va
+  firmado, así que estirarle el vencimiento a mano lo invalida.
+- La clave de firma se **deriva** de `ADMIN_PASSWORD`. Cambiar la contraseña
+  cierra de una todas las sesiones abiertas — es la única forma de echar a
+  alguien de un esquema sin estado.
+- La cookie es `httpOnly` (un XSS no se la lleva) y `sameSite: lax` (corta el
+  CSRF sobre los server actions).
+- `requireAdmin()` corre en **cada página y cada server action**, no solo en el
+  layout. Un server action es un endpoint POST de verdad: se lo puede invocar
+  con un `curl` sin pasar nunca por la UI.
+- `proxy.ts` (el ex-middleware, renombrado en Next 16) hace solo un chequeo
+  optimista de que la cookie exista. Nada de criptografía ni de base: corre en
+  cada request, incluidos los prefetch.
+
+### El catálogo estático
+
+`core/catalog/infrastructure/catalog.data.ts` y `pnpm seed:products` siguen
+existiendo como semilla del arranque. Una vez que cargás desde el panel, la
+fuente de verdad es la base: **no vuelvas a correr el seed**, porque pisa el
+stock con el del archivo.
 
 ## Diseño
 
@@ -92,13 +143,25 @@ NEXT_PUBLIC_SITE_URL=https://noxi-drab.vercel.app
 # Supabase (Project Settings > API)
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Entrada al panel /admin. Es la única puerta: que sea RANDOM, no memorizable.
+# Generala con: openssl rand -hex 32
+#
+# 32 bytes random = 256 bits. Lo que importa no es que sea larga, es que sea
+# aleatoria: "NoxiCults2026!" tiene más caracteres que entropía y un
+# diccionario la saca en minutos. Y en hex son solo 0-9a-f, así que no hay
+# `+`, `/` ni `=` que se rompan al pegarla en Vercel o al citarla en un .env.
+ADMIN_PASSWORD=xxxxxxxxxxxx
 ```
 
-> **Nunca le pongas `NEXT_PUBLIC_` al service role key.** Las variables
-> `NEXT_PUBLIC_` se inlinean en el build y viajan al navegador. Esa clave
-> saltea el RLS: en el bundle equivale a dar acceso total a las órdenes.
+> **Nunca le pongas `NEXT_PUBLIC_` al service role key ni a `ADMIN_PASSWORD`.**
+> Las variables `NEXT_PUBLIC_` se inlinean en el build y viajan al navegador.
+> El service role key saltea el RLS: en el bundle equivale a dar acceso total a
+> las órdenes. Y `ADMIN_PASSWORD` en el bundle es el panel abierto para
+> cualquiera que abra las devtools.
 
-En Vercel, las mismas tres con `vercel env add`.
+En Vercel, las mismas con `vercel env add`. Sin `ADMIN_PASSWORD` el panel queda
+cerrado (y avisa en los logs del servidor).
 
 ### Flujo
 
