@@ -1,8 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, JetBrains_Mono } from "next/font/google";
-import { SiteHeader } from "@/components/layout/site-header";
-import { SiteFooter } from "@/components/layout/site-footer";
-import { CartDrawer } from "@/components/cart/cart-drawer";
 import "./globals.css";
 
 const archivo = Archivo({
@@ -36,18 +33,21 @@ export const viewport: Viewport = {
   themeColor: "#000000",
 };
 
+/**
+ * Solo el documento: fuentes, idioma, fondo.
+ *
+ * El header, el footer y el carrito bajaron al layout de `(store)`. El panel
+ * admin vive en el mismo dominio pero NO es la tienda: no tiene que arrastrar
+ * un carrito ni el logo de la marca sobre cada pantalla de carga. Los route
+ * groups no cambian ni una URL — `(store)` no aparece en la ruta.
+ */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es-AR"
       className={`${archivo.variable} ${jetbrains.variable} h-full`}
     >
-      <body className="flex min-h-full flex-col bg-void">
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
-        <CartDrawer />
-      </body>
+      <body className="flex min-h-full flex-col bg-void">{children}</body>
     </html>
   );
 }
