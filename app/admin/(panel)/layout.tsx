@@ -27,6 +27,13 @@ export default async function PanelLayout({
           <Link href="/admin" className="label text-chrome">
             NOXICLTS<span className="text-blood">/</span>PANEL
           </Link>
+
+          <Link
+            href="/admin/ordenes"
+            className="label text-silver transition-colors hover:text-chrome"
+          >
+            Órdenes
+          </Link>
         </div>
 
         <div className="flex items-center gap-5">

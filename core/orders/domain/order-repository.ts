@@ -43,5 +43,8 @@ export interface OrderRepository {
 
   findByReference(reference: string): Promise<OrderRecord | null>;
 
+  /** Las últimas órdenes, para el panel. De la más nueva a la más vieja. */
+  findRecent(limit: number): Promise<OrderRecord[]>;
+
   markForReview(reference: string, motivo: string): Promise<void>;
 }

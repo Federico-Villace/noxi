@@ -15,6 +15,7 @@ function orders(overrides: Partial<OrderRepository> = {}): OrderRepository {
       order: { reference: "noxi-1", status: "pagada", lines: [], totalInCents: 0 },
     }),
     findByReference: vi.fn(),
+    findRecent: vi.fn(),
     markForReview: vi.fn(),
     ...overrides,
   };

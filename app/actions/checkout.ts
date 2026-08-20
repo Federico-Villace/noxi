@@ -8,10 +8,15 @@ import {
   buildOrder,
   type CheckoutRequestLine,
 } from "@/core/checkout/domain/build-order";
+import {
+  parseCustomer,
+  type CustomerErrors,
+  type RawCustomer,
+} from "@/core/checkout/domain/customer";
 
 export type StartCheckoutResult =
   | { ok: true; redirectUrl: string }
-  | { ok: false; message: string };
+  | { ok: false; message: string; errors?: CustomerErrors };
 
 const MESSAGES: Record<string, string> = {
   "carrito-vacio": "El carrito está vacío.",
@@ -24,10 +29,25 @@ const MESSAGES: Record<string, string> = {
  *
  * El cliente manda SOLO `productId` y `quantity`. Precio y stock se resuelven
  * acá contra el catálogo del servidor — ver `buildOrder`.
+ *
+ * Los datos de la compradora se validan de nuevo ACÁ aunque el formulario ya
+ * los haya validado en el navegador. Esto es un endpoint POST alcanzable con
+ * un curl: la validación del cliente es comodidad, no control.
  */
 export async function startCheckout(
   items: CheckoutRequestLine[],
+  datos: RawCustomer,
 ): Promise<StartCheckoutResult> {
+  const customer = parseCustomer(datos);
+
+  if (!customer.ok) {
+    return {
+      ok: false,
+      message: "Revisá los datos marcados.",
+      errors: customer.errors,
+    };
+  }
+
   const catalog = await productRepository.findAll();
   const result = buildOrder(items, catalog, `noxi-${randomUUID()}`);
 
@@ -43,6 +63,10 @@ export async function startCheckout(
       status: "iniciada",
       lines: result.order.lines,
       totalInCents: result.order.totalInCents,
+      // Se guardan ANTES de mandar a pagar. Si abandona el pago, la orden
+      // queda en "iniciada" pero con los datos: es una venta recuperable en
+      // vez de un carrito fantasma.
+      customer: customer.value,
     });
 
     const base = siteUrl();

@@ -89,3 +89,30 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+  Impresión del comprobante.
+
+  Sin esto sale una hoja negra: ilegible en la mayoría de las impresoras y
+  carísima en tinta. Se invierte a papel blanco y se saca todo lo que no es el
+  comprobante — el header, el footer y los botones no van en un papel.
+*/
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  header,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  .receipt,
+  .receipt * {
+    color: #000 !important;
+    border-color: #b0b0b0 !important;
+  }
+}
