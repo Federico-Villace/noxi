@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isSoldOut, productRepository } from "@/core/catalog";
 import { formatPrice } from "@/core/shared/domain/money";
-import { ProductMedia } from "@/components/catalog/product-media";
+import { ProductGallery } from "@/components/catalog/product-gallery";
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
 
 export const revalidate = 60;
@@ -42,22 +42,15 @@ export default async function ProductPage({
 
   return (
     <article className="grid grid-cols-1 lg:grid-cols-2">
-      <div className="grain relative aspect-square border-b border-line bg-void lg:sticky lg:top-14 lg:aspect-auto lg:h-[calc(100svh-3.5rem)] lg:border-b-0 lg:border-r">
-        <ProductMedia
-          src={product.images[0]}
+      {/* El grano, el aspect y el cartel de agotado se mudaron adentro de la
+          galería: acá queda solo el marco pegajoso de la columna. */}
+      <div className="border-b border-line bg-void lg:sticky lg:top-14 lg:h-[calc(100svh-3.5rem)] lg:border-b-0 lg:border-r">
+        <ProductGallery
+          images={product.images}
           alt={product.name}
           sku={product.id}
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          priority
+          soldOut={soldOut}
         />
-
-        {soldOut && (
-          <div className="absolute inset-0 grid place-items-center bg-void/70 backdrop-grayscale">
-            <span className="label border border-line-strong px-4 py-2.5 text-silver">
-              Agotado
-            </span>
-          </div>
-        )}
       </div>
 
       <div className="flex flex-col">
