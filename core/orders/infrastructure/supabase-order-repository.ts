@@ -17,6 +17,16 @@ interface OrderRow {
   needs_review: boolean;
   created_at: string;
   paid_at: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_doc: string | null;
+  shipping_street: string | null;
+  shipping_extra: string | null;
+  shipping_city: string | null;
+  shipping_province: string | null;
+  shipping_zip: string | null;
+  customer_notes: string | null;
   order_lines?: LineRow[];
 }
 
@@ -35,6 +45,20 @@ function toRecord(row: OrderRow): OrderRecord {
     paymentId: row.payment_id,
     payerEmail: row.payer_email,
     needsReview: row.needs_review,
+    // `?? ""` y no `null`: las órdenes viejas son anteriores al formulario.
+    // El panel muestra un campo vacío, no tiene que distinguir dos ausencias.
+    customer: {
+      name: row.customer_name ?? "",
+      email: row.customer_email ?? "",
+      phone: row.customer_phone ?? "",
+      docId: row.customer_doc ?? "",
+      street: row.shipping_street ?? "",
+      streetExtra: row.shipping_extra ?? "",
+      city: row.shipping_city ?? "",
+      province: row.shipping_province ?? "",
+      zip: row.shipping_zip ?? "",
+      notes: row.customer_notes ?? "",
+    },
     createdAt: row.created_at,
     paidAt: row.paid_at,
     lines: (row.order_lines ?? []).map(
@@ -60,6 +84,18 @@ async function findByReference(reference: string): Promise<OrderRecord | null> {
   return data ? toRecord(data as OrderRow) : null;
 }
 
+async function findRecent(limit: number): Promise<OrderRecord[]> {
+  const { data, error } = await supabaseAdmin()
+    .from("orders")
+    .select("*, order_lines(*)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`No se pudieron leer las órdenes: ${error.message}`);
+
+  return (data as OrderRow[]).map(toRecord);
+}
+
 export function createSupabaseOrderRepository(): OrderRepository {
   return {
     async create(order) {
@@ -69,6 +105,16 @@ export function createSupabaseOrderRepository(): OrderRepository {
         reference: order.reference,
         status: order.status,
         total_in_cents: order.totalInCents,
+        customer_name: order.customer.name,
+        customer_email: order.customer.email,
+        customer_phone: order.customer.phone,
+        customer_doc: order.customer.docId,
+        shipping_street: order.customer.street,
+        shipping_extra: order.customer.streetExtra,
+        shipping_city: order.customer.city,
+        shipping_province: order.customer.province,
+        shipping_zip: order.customer.zip,
+        customer_notes: order.customer.notes,
       });
 
       if (orderError) {
@@ -95,6 +141,8 @@ export function createSupabaseOrderRepository(): OrderRepository {
         );
       }
     },
+
+    findRecent,
 
     async confirmPayment({
       reference,

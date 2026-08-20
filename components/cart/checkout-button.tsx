@@ -1,53 +1,38 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { startCheckout } from "@/app/actions/checkout";
+import Link from "next/link";
 import { useCartStore } from "@/core/cart/infrastructure/cart-store";
 
+/**
+ * Ya no llama a `startCheckout`: ahora lleva al formulario de datos.
+ *
+ * El checkout pasó a ser de dos pasos —datos, después pago— para que la orden
+ * quede guardada con nombre y dirección ANTES de salir del sitio. Si se
+ * abandona el pago, queda una venta a la que se puede escribir.
+ */
 export function CheckoutButton() {
   const lines = useCartStore((state) => state.lines);
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const close = useCartStore((state) => state.close);
 
-  const empty = lines.length === 0;
-
-  const goToCheckout = () => {
-    setError(null);
-
-    startTransition(async () => {
-      // Solo qué y cuánto. El precio lo pone el servidor, nunca el navegador.
-      const result = await startCheckout(
-        lines.map((line) => ({
-          productId: line.productId,
-          quantity: line.quantity,
-        })),
-      );
-
-      if (result.ok) {
-        window.location.href = result.redirectUrl;
-        return;
-      }
-
-      setError(result.message);
-    });
-  };
-
-  return (
-    <>
-      {error && (
-        <p role="alert" className="label mb-3 text-blood">
-          {error}
-        </p>
-      )}
-
+  if (lines.length === 0) {
+    return (
       <button
         type="button"
-        onClick={goToCheckout}
-        disabled={empty || pending}
-        className="label w-full border border-chrome bg-chrome py-4 text-void transition-colors hover:border-blood hover:bg-blood disabled:cursor-not-allowed disabled:border-line disabled:bg-carbon disabled:text-silver/40"
+        disabled
+        className="label w-full cursor-not-allowed border border-line bg-carbon py-4 text-silver/40"
       >
-        {pending ? "Redirigiendo…" : "Pagar con MercadoPago"}
+        Carrito vacío
       </button>
-    </>
+    );
+  }
+
+  return (
+    <Link
+      href="/checkout/datos"
+      onClick={close}
+      className="label block w-full border border-chrome bg-chrome py-4 text-center text-void transition-colors hover:border-blood hover:bg-blood"
+    >
+      Continuar
+    </Link>
   );
 }

@@ -53,8 +53,10 @@ haya que ir a tocar al SQL editor.
 
 ### Puesta en marcha (una sola vez)
 
-1. Corré `supabase/migrations/0003_products_bucket.sql` en el SQL Editor. Crea
-   el bucket público `products`, que es donde van las fotos.
+1. Corré `supabase/migrations/0003_products_bucket.sql` y
+   `0004_customer_details.sql` en el SQL Editor. El primero crea el bucket
+   público `products` (donde van las fotos); el segundo agrega a `orders` los
+   datos de la compradora y del envío.
 2. Cargá `ADMIN_PASSWORD` en `.env.local` y en Vercel (ver
    [Variables de entorno](#variables-de-entorno)).
 
@@ -92,6 +94,28 @@ Listo. `/admin` pide esa contraseña y adentro está todo.
 
 Al guardar se revalidan la home y la ficha, así que el cambio se ve en la
 tienda al instante y no dentro de 60 segundos.
+
+## Comprobante y órdenes
+
+La compradora ve el comprobante completo en `/checkout/exito` al volver del
+pago —piezas, total, sus datos y la dirección de envío— y lo puede imprimir o
+guardar como PDF desde el navegador. Hay `@media print` en `globals.css`: sin
+eso saldría una hoja negra, ilegible y carísima en tinta.
+
+Vos ves lo mismo en **`/admin/ordenes`**: las últimas 50, con estado, total y
+un `<details>` que despliega el comprobante entero para preparar el paquete.
+Las marcadas **Revisar** son sobreventas — se confirmó un pago y el stock no
+alcanzaba.
+
+Es el **mismo componente** (`components/checkout/receipt.tsx`) en las dos
+pantallas. Si fueran dos, tarde o temprano uno muestra un dato que el otro no y
+hay que cotejar pantallas para contestar un reclamo.
+
+### Por qué los datos van en `orders` y no en una tabla `customers`
+
+Mismo criterio que `order_lines`: es un **snapshot** contable. Si la clienta se
+muda el año que viene, la orden de hoy tiene que seguir diciendo adónde se
+despachó hoy. Con una foreign key, editar un dato reescribiría el pasado.
 
 ### La seguridad del panel
 
@@ -177,13 +201,20 @@ cerrado (y avisa en los logs del servidor).
 ### Flujo
 
 ```
-carrito → startCheckout (server action)
-            └─ buildOrder: precio y stock desde el SERVIDOR
-            └─ preference → redirect a init_point (MP)
-                              └─ paga en MercadoPago
-                                   ├─ back_urls → /checkout/{exito,error,pendiente}
-                                   └─ webhook  → /api/webhooks/mercadopago
+carrito → /checkout/datos  (formulario: contacto + envío)
+            └─ startCheckout (server action)
+                 ├─ parseCustomer: valida OTRA VEZ en el servidor
+                 ├─ buildOrder: precio y stock desde el SERVIDOR
+                 ├─ orders.create: guarda la orden CON los datos
+                 └─ preference → redirect a init_point (MP)
+                                   └─ paga en MercadoPago
+                                        ├─ back_urls → /checkout/{exito,error,pendiente}
+                                        └─ webhook  → /api/webhooks/mercadopago
 ```
+
+Los datos se piden **antes** de salir del sitio. Si el pago se abandona, la
+orden queda en `iniciada` pero con nombre, mail y dirección: es una venta
+recuperable en vez de un carrito fantasma.
 
 ### Las dos reglas de seguridad
 
