@@ -35,9 +35,16 @@ export interface ProductAdminRepository {
   findById(id: ProductId): Promise<AdminProduct | null>;
   create(product: AdminProduct): Promise<SaveProductResult>;
   update(product: AdminProduct): Promise<SaveProductResult>;
-  /**
-   * Baja lógica. No hay borrado físico: una pieza vendida sigue siendo la
-   * referencia de órdenes viejas y de lo que la clienta ve en su comprobante.
-   */
+  /** Baja lógica: la pieza deja la vitrina pero sigue existiendo. */
   setActive(id: ProductId, active: boolean): Promise<void>;
+
+  /**
+   * Borrado FÍSICO. Se puede, y no rompe nada: `order_lines` guarda el
+   * título y el precio como snapshot y NO tiene foreign key a `products`.
+   * Una orden vieja sigue diciendo lo mismo aunque la pieza ya no exista.
+   *
+   * Es para lo cargado por error. Para una pieza que se vendió y se discontinuó
+   * está `setActive(id, false)`, que conserva el historial navegable.
+   */
+  remove(id: ProductId): Promise<void>;
 }

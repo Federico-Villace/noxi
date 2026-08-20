@@ -145,6 +145,16 @@ export const supabaseProductAdminRepository: ProductAdminRepository = {
       throw new Error(`No se pudo cambiar el estado del producto: ${error.message}`);
     }
   },
+
+  async remove(id) {
+    const { error } = await supabaseAdmin().from("products").delete().eq("id", id);
+
+    // Acá SÍ se lanza: si la fila no se borró, la pieza sigue en la vitrina y
+    // quien apretó Borrar tiene que enterarse.
+    if (error) {
+      throw new Error(`No se pudo borrar el producto: ${error.message}`);
+    }
+  },
 };
 
 /** Solo lo que el panel necesita para autonumerar: no trae el catálogo entero. */

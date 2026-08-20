@@ -71,13 +71,24 @@ Listo. `/admin` pide esa contraseña y adentro está todo.
   panel te lo dice.
 - **ID**: vacío se autonumera (`NX-009`). Va desde el mayor existente, no desde
   la cantidad, así no puede repetir uno ya usado.
-- **Fotos**: se suben desde el panel a Supabase Storage. La primera es la
-  portada. Sin fotos, la tienda muestra un marco vacío con el SKU — se lee como
-  diseño, no como bug.
+- **Fotos**: se suben desde el panel a Supabase Storage, **varias de una vez**.
+  La primera es la portada y se puede reordenar. La ficha de producto las
+  muestra todas con miniaturas; la grilla muestra solo la portada. Si una foto
+  del lote falla, las demás igual entran y el error nombra cuál falló. Sin
+  fotos, la tienda muestra un marco vacío con el SKU — se lee como diseño, no
+  como bug.
 - **Stock 0** = agotada, y va al final de la grilla.
-- **Ocultar** es baja lógica (`active = false`). No hay borrado físico: una
-  pieza vendida sigue siendo la referencia de órdenes viejas y del comprobante
-  que tiene la clienta.
+- **Ocultar** (`active = false`) saca la pieza de la vitrina sin borrarla.
+  Es lo que corresponde para algo que se vendió y se discontinuó: queda en el
+  panel y se puede volver a publicar.
+- **Borrar** es físico y es irreversible: se va la fila y sus fotos del bucket.
+  Es para lo que cargaste por error, y vive solo en la ficha de edición, detrás
+  de una confirmación que nombra la pieza.
+
+  > Borrar no rompe el historial. `order_lines` guarda `title` y
+  > `unit_price_in_cents` como snapshot y **no** tiene foreign key a
+  > `products`: una orden vieja sigue diciendo lo mismo aunque la pieza ya no
+  > exista.
 
 Al guardar se revalidan la home y la ficha, así que el cambio se ve en la
 tienda al instante y no dentro de 60 segundos.

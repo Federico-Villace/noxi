@@ -73,3 +73,46 @@ export function imageObjectPath(
 
   return `${slug}/${base}.${ext}`;
 }
+
+/** Prefijo con el que Supabase Storage sirve un bucket público. */
+const RUTA_PUBLICA = "/storage/v1/object/public/";
+
+/**
+ * El camino inverso de la subida: de la URL guardada en `Product.images` a la
+ * clave del objeto dentro del bucket.
+ *
+ * Hace falta para borrar. Y es más delicado de lo que parece, porque en
+ * `images` conviven dos cosas: URLs de Storage y rutas locales del catálogo
+ * viejo (`/products/dije-tortuga.jpg`). Devuelve `null` para todo lo que no
+ * sea un objeto de ESTE bucket, así el borrado las saltea en vez de mandar un
+ * delete a ciegas.
+ */
+export function objectPathFromPublicUrl(
+  url: string,
+  bucket: string,
+): string | null {
+  let pathname: string;
+
+  try {
+    // Revienta con rutas relativas y con basura: las dos cosas son "no es
+    // un objeto del bucket", que es exactamente lo que queremos responder.
+    pathname = new URL(url).pathname;
+  } catch {
+    return null;
+  }
+
+  const prefijo = `${RUTA_PUBLICA}${bucket}/`;
+
+  // `indexOf === 0` y no `includes`: el prefijo tiene que abrir el path, no
+  // aparecer en cualquier lado.
+  if (pathname.indexOf(prefijo) !== 0) return null;
+
+  const objeto = pathname.slice(prefijo.length);
+  if (!objeto) return null;
+
+  try {
+    return decodeURIComponent(objeto);
+  } catch {
+    return null;
+  }
+}
