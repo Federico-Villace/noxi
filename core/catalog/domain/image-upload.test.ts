@@ -4,6 +4,7 @@ import {
   isSupportedImage,
   isTooLarge,
   imageObjectPath,
+  objectPathFromPublicUrl,
 } from "./image-upload";
 
 describe("isSupportedImage", () => {
@@ -87,5 +88,61 @@ describe("imageObjectPath", () => {
 
     expect(path.length).toBeLessThanOrEqual(80);
     expect(path.endsWith(".jpg")).toBe(true);
+  });
+});
+
+describe("objectPathFromPublicUrl", () => {
+  const BASE = "https://abcdef.supabase.co/storage/v1/object/public";
+
+  it("recupera la ruta del objeto de una URL pública del bucket", () => {
+    expect(
+      objectPathFromPublicUrl(`${BASE}/products/sello-negro/k3j9-frente.jpg`, "products"),
+    ).toBe("sello-negro/k3j9-frente.jpg");
+  });
+
+  it("ignora la query string de una URL firmada o con cache-buster", () => {
+    expect(
+      objectPathFromPublicUrl(`${BASE}/products/sello-negro/k3j9.jpg?t=123`, "products"),
+    ).toBe("sello-negro/k3j9.jpg");
+  });
+
+  it("decodifica los caracteres escapados del path", () => {
+    expect(
+      objectPathFromPublicUrl(`${BASE}/products/sello%20negro/foto.jpg`, "products"),
+    ).toBe("sello negro/foto.jpg");
+  });
+
+  /**
+   * El catálogo viejo tiene rutas locales servidas desde `public/`. Si el
+   * borrado las tomara por objetos del bucket, mandaría un delete contra una
+   * clave que no existe — o peor, contra una que sí.
+   */
+  it("devuelve null para una ruta local del repo", () => {
+    expect(objectPathFromPublicUrl("/products/dije-tortuga.jpg", "products")).toBeNull();
+  });
+
+  it("devuelve null si la URL apunta a otro bucket", () => {
+    expect(
+      objectPathFromPublicUrl(`${BASE}/facturas/enero/x.jpg`, "products"),
+    ).toBeNull();
+  });
+
+  it("devuelve null para un host ajeno", () => {
+    expect(
+      objectPathFromPublicUrl("https://cdn.otro.com/products/foto.jpg", "products"),
+    ).toBeNull();
+  });
+
+  /** Nunca lanza: una URL basura en la base no puede voltear el borrado. */
+  it.each(["", "   ", "no-es-una-url", "://roto"])(
+    "devuelve null sin lanzar para %o",
+    (url) => {
+      expect(() => objectPathFromPublicUrl(url, "products")).not.toThrow();
+      expect(objectPathFromPublicUrl(url, "products")).toBeNull();
+    },
+  );
+
+  it("devuelve null si no queda ruta después del bucket", () => {
+    expect(objectPathFromPublicUrl(`${BASE}/products/`, "products")).toBeNull();
   });
 });

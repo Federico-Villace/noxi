@@ -117,8 +117,11 @@ export async function saveProduct(
 }
 
 /**
- * Baja y alta lógica. Sin borrado físico: una pieza vendida es la referencia
- * de órdenes viejas y del comprobante que tiene la clienta.
+ * Baja y alta lógica: saca la pieza de la vitrina sin borrarla.
+ *
+ * Es lo que corresponde para algo que se vendió y se discontinuó — queda
+ * navegable en el panel y se puede volver a publicar. Para lo cargado por
+ * error está `deleteProduct`.
  */
 export async function toggleProductActive(formData: FormData): Promise<void> {
   await requireAdmin();
@@ -135,38 +138,93 @@ export async function toggleProductActive(formData: FormData): Promise<void> {
   revalidatePath(ADMIN_HOME_PATH);
 }
 
-export type UploadImageResult =
+type SubidaDeArchivo =
   | { ok: true; url: string }
   | { ok: false; message: string };
 
+export interface UploadImagesResult {
+  /** URLs subidas, en el mismo orden en que se eligieron los archivos. */
+  urls: string[];
+  /** Una línea por archivo que falló. El resto igual subió. */
+  errors: string[];
+}
+
 /**
- * Sube una foto y devuelve su URL pública, para que el formulario la agregue a
- * la lista sin recargar. La foto viaja a Storage ANTES de que el producto se
- * guarde: si después se abandona el formulario, queda un archivo huérfano en
- * el bucket. Es el precio de poder previsualizar, y es barato.
+ * Sube varias fotos de una. Cada archivo se resuelve por separado: si una foto
+ * pesa de más, las otras cuatro igual entran y el error habla solo de esa.
+ * Un lote que se cae entero porque uno falló obliga a rehacer todo el trabajo.
+ *
+ * Las fotos viajan a Storage ANTES de guardar el producto, para poder
+ * previsualizarlas. Si después se abandona el formulario quedan archivos
+ * huérfanos en el bucket: es el precio de ver lo que estás cargando.
  */
-export async function uploadProductImage(
+export async function uploadProductImages(
   formData: FormData,
-): Promise<UploadImageResult> {
+): Promise<UploadImagesResult> {
   await requireAdmin();
 
-  const archivo = formData.get("file");
+  const archivos = formData
+    .getAll("files")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+
   const slug = String(formData.get("slug") ?? "").trim() || "sin-slug";
 
-  if (!(archivo instanceof File)) {
-    return { ok: false, message: "No llegó ningún archivo." };
+  if (archivos.length === 0) {
+    return { urls: [], errors: ["No llegó ningún archivo."] };
   }
 
-  try {
-    return { ok: true, url: await imageStorage.upload(archivo, slug) };
-  } catch (error) {
-    console.error("[admin] fallo al subir la imagen", error);
+  // `Promise.all` con el try adentro de cada uno: se resuelven todos, ninguno
+  // cancela a los demás, y el orden de selección se conserva.
+  const resultados: SubidaDeArchivo[] = await Promise.all(
+    archivos.map(async (archivo) => {
+      try {
+        return { ok: true as const, url: await imageStorage.upload(archivo, slug) };
+      } catch (error) {
+        console.error("[admin] fallo al subir una imagen", archivo.name, error);
 
-    return {
-      ok: false,
-      message: error instanceof Error ? error.message : "No se pudo subir la imagen.",
-    };
-  }
+        const detalle =
+          error instanceof Error ? error.message : "no se pudo subir";
+
+        return { ok: false as const, message: `${archivo.name}: ${detalle}` };
+      }
+    }),
+  );
+
+  return {
+    urls: resultados.flatMap((r) => (r.ok ? [r.url] : [])),
+    errors: resultados.flatMap((r) => (r.ok ? [] : [r.message])),
+  };
+}
+
+/**
+ * Borrado FÍSICO de una pieza. Irreversible.
+ *
+ * Es seguro: `order_lines` guarda título y precio como snapshot y no tiene
+ * foreign key a `products`, así que las órdenes viejas siguen diciendo lo
+ * mismo. Para una pieza que se vendió y se discontinuó conviene igual
+ * `toggleProductActive`, que la saca de la vitrina y conserva el historial.
+ */
+export async function deleteProduct(formData: FormData): Promise<void> {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  // Se lee ANTES de borrar: después de que la fila no está, no hay forma de
+  // saber qué fotos le pertenecían.
+  const product = await productAdminRepository.findById(id);
+  if (!product) redirect(ADMIN_HOME_PATH);
+
+  await productAdminRepository.remove(id);
+
+  // Las fotos van DESPUÉS de la fila y no lanzan. En el peor caso quedan
+  // archivos huérfanos; al revés quedaría un producto publicado apuntando a
+  // fotos que ya no existen, que es lo que sí ve una clienta.
+  await imageStorage.remove(product.images);
+
+  revalidarVitrina(product.slug);
+  revalidatePath(ADMIN_HOME_PATH);
+  redirect(ADMIN_HOME_PATH);
 }
 
 /**

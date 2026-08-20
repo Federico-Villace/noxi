@@ -6,7 +6,7 @@ import { useActionState, useState, useTransition, type ChangeEvent } from "react
 import { useFormStatus } from "react-dom";
 import {
   saveProduct,
-  uploadProductImage,
+  uploadProductImages,
   type ProductFormState,
 } from "@/app/admin/actions";
 import type { AdminProduct } from "@/core/catalog/domain/product-admin-repository";
@@ -53,7 +53,7 @@ export function ProductForm({ product }: ProductFormProps) {
   const [slugManual, setSlugManual] = useState(Boolean(product));
 
   const [subiendo, startUpload] = useTransition();
-  const [errorFoto, setErrorFoto] = useState<string | null>(null);
+  const [erroresFoto, setErroresFoto] = useState<string[]>([]);
 
   const set = (campo: keyof typeof values) => (valor: string) =>
     setValues((previo) => ({ ...previo, [campo]: valor }));
@@ -67,23 +67,26 @@ export function ProductForm({ product }: ProductFormProps) {
     }));
   }
 
-  function onArchivo(evento: ChangeEvent<HTMLInputElement>) {
-    const archivo = evento.target.files?.[0];
-    if (!archivo) return;
+  function onArchivos(evento: ChangeEvent<HTMLInputElement>) {
+    const archivos = Array.from(evento.target.files ?? []);
+    if (archivos.length === 0) return;
 
     const payload = new FormData();
-    payload.set("file", archivo);
+    // `append`, no `set`: cada archivo es una entrada más con la misma clave.
+    for (const archivo of archivos) payload.append("files", archivo);
     payload.set("slug", values.slug || slugify(values.name) || "sin-slug");
 
-    // Se limpia el input para poder volver a elegir el MISMO archivo si falló.
+    // Se limpia el input para poder volver a elegir los MISMOS archivos si falló.
     evento.target.value = "";
-    setErrorFoto(null);
+    setErroresFoto([]);
 
     startUpload(async () => {
-      const resultado = await uploadProductImage(payload);
+      const { urls, errors } = await uploadProductImages(payload);
 
-      if (resultado.ok) setImages((previas) => [...previas, resultado.url]);
-      else setErrorFoto(resultado.message);
+      // Se agregan las que SÍ subieron aunque alguna haya fallado. Descartar el
+      // lote entero por una foto pesada es trabajo tirado a la basura.
+      if (urls.length > 0) setImages((previas) => [...previas, ...urls]);
+      setErroresFoto(errors);
     });
   }
 
@@ -208,7 +211,8 @@ export function ProductForm({ product }: ProductFormProps) {
         <legend className="label text-silver">Fotos</legend>
 
         <p className="label mt-3 text-silver/60">
-          La primera es la portada · JPG, PNG, WEBP o AVIF · hasta 5 MB
+          La primera es la portada · elegí varias de una · JPG, PNG, WEBP o
+          AVIF · hasta 5 MB cada una
         </p>
 
         {images.length > 0 ? (
@@ -260,20 +264,25 @@ export function ProductForm({ product }: ProductFormProps) {
         )}
 
         <label className="label mt-4 inline-block cursor-pointer border border-line-strong px-4 py-3 text-chrome transition-colors hover:border-blood">
-          {subiendo ? "Subiendo…" : "+ Agregar foto"}
+          {subiendo ? "Subiendo…" : "+ Agregar fotos"}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/avif"
-            onChange={onArchivo}
+            multiple
+            onChange={onArchivos}
             disabled={subiendo}
             className="sr-only"
           />
         </label>
 
-        {errorFoto ? (
-          <p className="label mt-3 text-blood" role="alert">
-            {errorFoto}
-          </p>
+        {erroresFoto.length > 0 ? (
+          <ul className="mt-3 flex flex-col gap-1.5" role="alert">
+            {erroresFoto.map((mensaje) => (
+              <li key={mensaje} className="label text-blood">
+                {mensaje}
+              </li>
+            ))}
+          </ul>
         ) : null}
       </fieldset>
 

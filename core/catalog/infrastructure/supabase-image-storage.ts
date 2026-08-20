@@ -6,6 +6,7 @@ import {
   imageObjectPath,
   isSupportedImage,
   isTooLarge,
+  objectPathFromPublicUrl,
 } from "../domain/image-upload";
 
 /** Bucket PÚBLICO de Supabase Storage. Ver README para crearlo. */
@@ -57,5 +58,29 @@ export const supabaseImageStorage: ImageStorage = {
       .getPublicUrl(path);
 
     return data.publicUrl;
+  },
+
+  async remove(urls) {
+    // Las rutas del catálogo viejo (`/products/x.jpg`) viven en el repo, no
+    // acá: `objectPathFromPublicUrl` las descarta y no se les manda nada.
+    const paths = urls
+      .map((url) => objectPathFromPublicUrl(url, PRODUCTS_BUCKET))
+      .filter((path): path is string => path !== null);
+
+    if (paths.length === 0) return;
+
+    const { error } = await supabaseAdmin()
+      .storage.from(PRODUCTS_BUCKET)
+      .remove(paths);
+
+    // A propósito NO se lanza. Si el producto ya se borró de la base y esto
+    // falla, quedan archivos huérfanos: basura barata. Lanzar acá dejaría el
+    // borrado a medias, que es mucho peor. Queda el log para limpiarlo.
+    if (error) {
+      console.error("[admin] no se pudieron borrar las fotos", {
+        paths,
+        message: error.message,
+      });
+    }
   },
 };
