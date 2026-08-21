@@ -1,5 +1,6 @@
 import type { PaymentVerifier } from "@/core/checkout/domain/payment-verifier";
 import type { OrderRecord } from "../domain/order";
+import type { OrderNotifier } from "../domain/order-notifier";
 import type { OrderRepository } from "../domain/order-repository";
 import { fromMercadoPagoStatus } from "../domain/order-status";
 import type { StockAdjuster } from "../domain/stock-adjuster";
@@ -16,6 +17,8 @@ interface Deps {
   orders: OrderRepository;
   /** Opcional: sin él la orden se confirma igual, solo no se descuenta stock. */
   stock?: StockAdjuster;
+  /** Opcional: sin él la orden se confirma igual, solo no sale el aviso. */
+  notifier?: OrderNotifier;
 }
 
 /**
@@ -83,8 +86,13 @@ export async function confirmOrderPayment(
     payerEmail: payment.payerEmail ?? null,
   });
 
+  // `actualizada` ocurre UNA vez por venta: el control de concurrencia
+  // optimista de `confirmPayment` descarta las notificaciones repetidas de
+  // MercadoPago. Por eso los dos efectos —descontar stock y avisar— viven
+  // acá adentro: es la única guarda que garantiza que pasen una sola vez.
   if (result.outcome === "actualizada" && result.order.status === "pagada") {
     await applyStock(payment.externalReference, deps);
+    await deps.notifier?.saleConfirmed(result.order);
   }
 
   return result;

@@ -111,6 +111,43 @@ Es el **mismo componente** (`components/checkout/receipt.tsx`) en las dos
 pantallas. Si fueran dos, tarde o temprano uno muestra un dato que el otro no y
 hay que cotejar pantallas para contestar un reclamo.
 
+### Aviso de venta por mail
+
+Cuando un pago se confirma sale un mail a la tienda con el comprobante: qué se
+vendió, a quién, y la dirección para despachar. **Responder le escribe a la
+compradora**, no a la tienda — el `replyTo` es su mail.
+
+Va en TEXTO PLANO a propósito. No es una pieza de marca: es una orden de
+trabajo que se lee en el teléfono y de la que se copia una dirección a un
+formulario de despacho. El texto plano se ve igual en todos lados y se copia
+sin arrastrar estilos.
+
+Se dispara en `confirmOrderPayment`, dentro de la MISMA guarda que descuenta
+el stock (`outcome === "actualizada"`). Esa guarda es el control de
+concurrencia optimista de `confirmPayment`: MercadoPago reintenta la misma
+notificación y además está el canal de la vuelta al sitio, así que sin ella una
+venta mandaría cinco mails.
+
+Si falla el envío, **la venta no se cae**: queda el log y la orden sigue en
+`/admin/ordenes`. El mail es un aviso, no el registro.
+
+#### Puesta en marcha
+
+1. Creá la cuenta de Resend **con la casilla de la tienda**
+   (`noxiclts@gmail.com`). Sin dominio propio verificado, Resend solo entrega
+   a la dirección con la que se registró la cuenta — por eso importa cuál usás.
+2. Cargá en Vercel `RESEND_API_KEY` y `SALE_EMAIL_TO`.
+
+Sin esas dos variables el aviso no sale y queda un `warn` en el log. Nada se
+rompe: es una notificación, no parte del cobro.
+
+#### El día que haya dominio propio
+
+Verificás el dominio en Resend, cambiás `SALE_EMAIL_FROM` a algo como
+`NOXICLTS <ventas@noxiclts.com>` y listo — **cero cambios de código**. Recién
+ahí se puede mandar el comprobante a la compradora, porque cada una tiene un
+mail distinto y eso exige dominio verificado.
+
 ### Por qué los datos van en `orders` y no en una tabla `customers`
 
 Mismo criterio que `order_lines`: es un **snapshot** contable. Si la clienta se
@@ -187,6 +224,14 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 # diccionario la saca en minutos. Y en hex son solo 0-9a-f, así que no hay
 # `+`, `/` ni `=` que se rompan al pegarla en Vercel o al citarla en un .env.
 ADMIN_PASSWORD=xxxxxxxxxxxx
+
+# Aviso de venta (Resend). Sin estas dos, el mail no sale y no se rompe nada.
+RESEND_API_KEY=re_xxxxxxxxxxxx
+SALE_EMAIL_TO=noxiclts@gmail.com
+
+# Opcional. Sin dominio verificado dejalo sin definir: se usa el remitente
+# de Resend, que es el único que funciona en ese caso.
+# SALE_EMAIL_FROM=NOXICLTS <ventas@noxiclts.com>
 ```
 
 > **Nunca le pongas `NEXT_PUBLIC_` al service role key ni a `ADMIN_PASSWORD`.**

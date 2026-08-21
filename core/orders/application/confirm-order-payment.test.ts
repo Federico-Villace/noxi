@@ -122,3 +122,70 @@ describe("confirmOrderPayment", () => {
     expect(result.outcome).toBe("ignorada");
   });
 });
+
+describe("aviso de venta", () => {
+  function notifier() {
+    return { saleConfirmed: vi.fn().mockResolvedValue(undefined) };
+  }
+
+  it("avisa cuando la venta se confirma", async () => {
+    const aviso = notifier();
+
+    await confirmOrderPayment("171978151367", {
+      verifier: verifier(pagoAprobado),
+      orders: orders(),
+      notifier: aviso,
+    });
+
+    expect(aviso.saleConfirmed).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * MercadoPago reintenta la MISMA notificación, y además está el canal de la
+   * vuelta al sitio. Sin esta garantía, una venta manda cinco mails.
+   */
+  it("NO avisa de nuevo si la confirmación ya se había aplicado", async () => {
+    const aviso = notifier();
+    const repo = orders({
+      confirmPayment: vi.fn().mockResolvedValue({
+        outcome: "ignorada",
+        order: { reference: "noxi-1", status: "pagada", lines: [], totalInCents: 0 },
+      }),
+    });
+
+    await confirmOrderPayment("171978151367", {
+      verifier: verifier(pagoAprobado),
+      orders: repo,
+      notifier: aviso,
+    });
+
+    expect(aviso.saleConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("no avisa si el pago no terminó en pagada", async () => {
+    const aviso = notifier();
+    const repo = orders({
+      confirmPayment: vi.fn().mockResolvedValue({
+        outcome: "actualizada",
+        order: { reference: "noxi-1", status: "rechazada", lines: [], totalInCents: 0 },
+      }),
+    });
+
+    await confirmOrderPayment("171978151367", {
+      verifier: verifier({ ...pagoAprobado, status: "rejected" }),
+      orders: repo,
+      notifier: aviso,
+    });
+
+    expect(aviso.saleConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("se confirma igual sin notifier: el aviso es opcional", async () => {
+    const result = await confirmOrderPayment("171978151367", {
+      verifier: verifier(pagoAprobado),
+      orders: orders(),
+    });
+
+    expect(result.outcome).toBe("actualizada");
+  });
+});
