@@ -68,7 +68,7 @@ export default async function CheckoutSuccessPage({
           tone="ok"
           title="Pago aprobado"
           message="Recibimos tu pago. Te escribimos al mail que dejaste para coordinar el envío."
-          note="Drop 001 · Plata 925"
+          note="Drop 001 · Plata 950"
         />
       </>
     );

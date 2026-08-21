@@ -16,7 +16,7 @@ function raw(overrides: Partial<RawProductDraft> = {}): RawProductDraft {
     description: "Anillo sello de superficie plana.",
     price: "54000",
     images: ["/products/sello-negro.jpg"],
-    material: "Plata 925",
+    material: "Plata 950",
     stock: "3",
     drop: "DROP 001",
     active: true,
@@ -97,7 +97,7 @@ describe("slugify", () => {
     ["Anillo Ñandú", "anillo-nandu"],
     ["  Doble   espacio  ", "doble-espacio"],
     ["¡Hola! ¿Qué?", "hola-que"],
-    ["Plata 925 — edición", "plata-925-edicion"],
+    ["Plata 950 — edición", "plata-950-edicion"],
   ])("convierte %o en %o", (nombre, esperado) => {
     expect(slugify(nombre)).toBe(esperado);
   });
@@ -138,7 +138,7 @@ describe("parseProductDraft", () => {
         description: "Anillo sello de superficie plana.",
         priceInCents: 5_400_000,
         images: ["/products/sello-negro.jpg"],
-        material: "Plata 925",
+        material: "Plata 950",
         stock: 3,
         drop: "DROP 001",
         active: true,
@@ -186,7 +186,7 @@ describe("parseProductDraft", () => {
   it("completa material y drop con los mismos defaults que la tabla", () => {
     const resultado = parseProductDraft(raw({ material: "", drop: "" }));
 
-    expect(resultado.ok && resultado.value.material).toBe("Plata 925");
+    expect(resultado.ok && resultado.value.material).toBe("Plata 950");
     expect(resultado.ok && resultado.value.drop).toBe("DROP 001");
   });
 

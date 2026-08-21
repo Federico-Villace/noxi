@@ -11,7 +11,7 @@ export function SiteHeader() {
         </Link>
 
         <span className="label hidden text-silver md:block">
-          Drop 001 · Plata 925
+          Drop 001 · Plata 950
         </span>
 
         <CartTrigger />

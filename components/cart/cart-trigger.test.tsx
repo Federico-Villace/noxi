@@ -12,7 +12,7 @@ const tortuga: Product = {
   description: "",
   priceInCents: 4_800_000,
   images: [],
-  material: "Plata 925",
+  material: "Plata 950",
   stock: 4,
   drop: "DROP 001",
 };

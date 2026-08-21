@@ -41,7 +41,7 @@ export function ProductForm({ product }: ProductFormProps) {
     name: product?.name ?? "",
     description: product?.description ?? "",
     price: product ? centsToPriceInput(product.priceInCents) : "",
-    material: product?.material ?? "Plata 925",
+    material: product?.material ?? "Plata 950",
     stock: product ? String(product.stock) : "0",
     drop: product?.drop ?? "DROP 001",
   });

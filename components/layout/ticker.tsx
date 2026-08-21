@@ -1,6 +1,6 @@
 const MESSAGES = [
   "Drop 001",
-  "Plata 925",
+  "Plata 950",
   "Unidades limitadas",
   "Envíos a todo el país",
   "Hecho en Buenos Aires",

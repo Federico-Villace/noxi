@@ -1,6 +1,6 @@
 # NOXICLTS
 
-Ecommerce minimalista de joyería de plata 925. Drops limitados.
+Ecommerce minimalista de joyería de plata 950. Drops limitados.
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Zustand · Vitest
 
