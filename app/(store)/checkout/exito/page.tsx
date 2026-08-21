@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { paymentVerifier } from "@/core/checkout";
-import { orderRepository, stockAdjuster } from "@/core/orders";
+import { orderNotifier, orderRepository, stockAdjuster } from "@/core/orders";
 import { confirmOrderPayment } from "@/core/orders/application/confirm-order-payment";
 import { CheckoutStatus } from "@/components/checkout/checkout-status";
 import { ClearCart } from "@/components/checkout/clear-cart";
@@ -37,6 +37,7 @@ export default async function CheckoutSuccessPage({
         verifier: paymentVerifier(),
         orders: orderRepository(),
         stock: stockAdjuster(),
+        notifier: orderNotifier(),
       });
 
       // `actualizada` e `ignorada` traen la orden. La segunda es una recarga

@@ -29,3 +29,14 @@ alter table orders
 
 -- Para buscar una compra por mail cuando escriben preguntando.
 create index orders_customer_email_idx on orders (customer_email);
+
+/*
+  Supabase habla con la base a través de PostgREST, que mantiene un CACHE del
+  esquema. Después de un `alter table`, la API puede seguir un rato sin ver las
+  columnas nuevas y responder "Could not find the 'customer_doc' column of
+  'orders' in the schema cache" aunque la columna ya exista.
+
+  Esto le avisa que recargue. Normalmente lo hace solo, pero forzarlo cuesta
+  una línea y evita quedarse mirando un error que ya está resuelto.
+*/
+notify pgrst, 'reload schema';
