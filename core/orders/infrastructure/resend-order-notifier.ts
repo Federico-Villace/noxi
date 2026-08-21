@@ -32,7 +32,9 @@ export function createResendOrderNotifier(): OrderNotifier {
 
       try {
         const { data, error } = await new Resend(apiKey).emails.send({
-          from: process.env.SALE_EMAIL_FROM ?? FROM_POR_DEFECTO,
+          // `??` no alcanza: en Vercel es fácil crear la variable y dejarla
+          // vacía, y "" no es null. Un remitente vacío lo rechaza Resend.
+          from: process.env.SALE_EMAIL_FROM?.trim() || FROM_POR_DEFECTO,
           to: [to],
           subject,
           text,
