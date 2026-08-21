@@ -1,6 +1,6 @@
 const CELLS = [
   { label: "Marca", value: "Noxiclts" },
-  { label: "Material", value: "Plata 925" },
+  { label: "Material", value: "Plata 950" },
   {
     label: "Contacto",
     value: "Instagram",

@@ -29,7 +29,7 @@ const FROM_MERCADOPAGO: Record<string, OrderStatus> = {
  *
  * Si MercadoPago agrega un estado que todavía no conocemos, lo peor que puede
  * pasar es que revisemos una orden a mano. Un default optimista, en cambio,
- * significa despachar plata 925 por un pago que nunca entró.
+ * significa despachar plata 950 por un pago que nunca entró.
  */
 export function fromMercadoPagoStatus(
   status: string | null | undefined,

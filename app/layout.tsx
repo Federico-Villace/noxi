@@ -16,14 +16,14 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "NOXICLTS — Joyería de plata 925",
+    default: "NOXICLTS — Joyería de plata 950",
     template: "%s — NOXICLTS",
   },
   description:
-    "Joyería de plata 925 en drops limitados. Piezas macizas, diseño moderno. Buenos Aires.",
+    "Joyería de plata 950 en drops limitados. Piezas macizas, diseño moderno. Buenos Aires.",
   openGraph: {
-    title: "NOXICLTS — Joyería de plata 925",
-    description: "Drops limitados de joyería de plata 925. Buenos Aires.",
+    title: "NOXICLTS — Joyería de plata 950",
+    description: "Drops limitados de joyería de plata 950. Buenos Aires.",
     type: "website",
     locale: "es_AR",
   },

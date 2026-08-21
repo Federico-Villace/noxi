@@ -6,10 +6,10 @@ const tortuga: Product = {
   id: "NX-001",
   slug: "dije-tortuga",
   name: "Tortuga",
-  description: "Plata 925.",
+  description: "Plata 950.",
   priceInCents: 4_800_000,
   images: [],
-  material: "Plata 925",
+  material: "Plata 950",
   stock: 3,
   drop: "DROP 001",
 };

@@ -33,7 +33,7 @@ interface ParseOptions {
   existingIds?: readonly string[];
 }
 
-const MATERIAL_POR_DEFECTO = "Plata 925";
+const MATERIAL_POR_DEFECTO = "Plata 950";
 const DROP_POR_DEFECTO = "DROP 001";
 
 /** kebab-case estricto: el slug es la URL pública de la pieza. */

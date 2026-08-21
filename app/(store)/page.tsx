@@ -25,7 +25,7 @@ export default async function HomePage() {
 
         <div className="mt-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <p className="label max-w-xs text-silver">
-            Joyería de plata 925.
+            Joyería de plata 950.
             <br />
             Drops limitados. Buenos Aires.
           </p>
