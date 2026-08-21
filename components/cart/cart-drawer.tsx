@@ -162,6 +162,20 @@ export function CartDrawer() {
           </p>
 
           <CheckoutButton />
+
+          {/*
+            Salida directa. Con el carrito abierto sobre una ficha de producto,
+            volver al drop eran dos interacciones —cerrar y después el logo—.
+            Acá es una. Y de paso el carrito vacío deja de ser un callejón sin
+            salida: antes decía "está vacío" y no ofrecía nada que hacer.
+          */}
+          <Link
+            href="/"
+            onClick={close}
+            className="label mt-3 block w-full border border-line-strong py-4 text-center text-chrome transition-colors hover:border-blood hover:text-blood"
+          >
+            Volver al drop
+          </Link>
         </footer>
       </aside>
     </div>
